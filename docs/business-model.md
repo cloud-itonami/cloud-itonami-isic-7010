@@ -2,7 +2,7 @@
 
 ## Classification
 
-- Repository: `cloud-itonami-7010`
+- Repository: `cloud-itonami-isic-7010`
 - ISIC Rev.5: `7010`
 - Activity: head-office activities -- overseeing and administering other units of the same enterprise or group (strategic planning, budgeting, group-wide policy)
 - Social impact: professional standards, data sovereignty, transparent audit

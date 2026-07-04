@@ -1,6 +1,6 @@
 # Governance
 
-`cloud-itonami-7010` is an OSS open-business blueprint for head-office activities -- overseeing and administering other units of the same enterprise or group (strategic planning, budgeting, group-wide policy).
+`cloud-itonami-isic-7010` is an OSS open-business blueprint for head-office activities -- overseeing and administering other units of the same enterprise or group (strategic planning, budgeting, group-wide policy).
 Governance covers both the capability layer and the operator model.
 
 ## Maintainers

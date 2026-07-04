@@ -1,4 +1,4 @@
-# cloud-itonami-7010
+# cloud-itonami-isic-7010
 
 Open Business Blueprint for **ISIC Rev.5 7010**: Activities of head offices.
 

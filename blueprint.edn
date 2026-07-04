@@ -1,4 +1,4 @@
-{:itonami.blueprint/id "cloud-itonami-7010"
+{:itonami.blueprint/id "cloud-itonami-isic-7010"
  :itonami.blueprint/name "Activities of head offices"
  :itonami.blueprint/isic-rev5 "7010"
  :itonami.blueprint/domain :professional/head-office
