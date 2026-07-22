@@ -34,10 +34,9 @@
   audit trail a group entity trusting a head-office operator needs,
   and the evidence an operator needs if an allocation decision is
   later disputed."
-  (:require #?(:clj  [clojure.edn :as edn]
-               :cljs [cljs.reader :as edn])
-            [headoffice.registry :as registry]
-            [langchain.db :as d]))
+  (:require [headoffice.registry :as registry]
+            [langchain.db :as d]
+            [langchain-store.core :as ls]))
 
 (defprotocol Store
   (unit [s id])
@@ -145,8 +144,8 @@
    :allocation/seq             {:db/unique :db.unique/identity}
    :sequence/jurisdiction         {:db/unique :db.unique/identity}})
 
-(defn- enc [v] (pr-str v))
-(defn- dec* [s] (when s (edn/read-string s)))
+(defn- enc [v] (ls/enc v))
+(defn- dec* [s] (ls/dec* s))
 
 (defn- unit->tx [{:keys [id unit-name proposed-allocation-amount authorized-allocation-limit
                         transfer-price arms-length-range-min arms-length-range-max
