@@ -159,7 +159,17 @@
   [{:keys [op subject]} st]
   (when (= op :actuation/finalize-allocation)
     (let [u (store/unit st subject)]
-      (when (registry/budget-allocation-exceeds-authorized-limit? u)
+      (cond
+        ;; Either figure missing or non-numeric: the limit cannot be
+        ;; evaluated, so it is not "within limits". This used to fall
+        ;; through as "not over" and proceed.
+        ;; Only when the entity EXISTS: a missing entity is a different
+        ;; violation that another gate owns, and firing here would mask it.
+        (and u (not (registry/budget-allocation-exceeds-authorized-limit-checkable? u)))
+        [{:rule :budget-allocation-exceeds-authorized-limit
+          :detail "上限判定に必要な値が記録されていない -- 限度内と断定できないため進めない"}]
+
+        (registry/budget-allocation-exceeds-authorized-limit? u)
         [{:rule :budget-allocation-exceeds-authorized-limit
           :detail (str subject " の提案配分額(" (:proposed-allocation-amount u)
                       ")が承認限度額(" (:authorized-allocation-limit u) ")を超過")}]))))

@@ -88,6 +88,17 @@
   (and (number? proposed-allocation-amount) (number? authorized-allocation-limit)
        (> proposed-allocation-amount authorized-allocation-limit)))
 
+(defn budget-allocation-exceeds-authorized-limit-checkable?
+  "Are both sides of `budget-allocation-exceeds-authorized-limit?` actually recorded?
+
+  That predicate answers only `over` / `not over`, and its
+  `(and (number? ...) (number? ...) ...)` guard made every un-recorded
+  case fall through as `not over` -- an entity missing either figure
+  passed the limit check silently. Callers must ask this first:
+  un-checkable is not within limits."
+  [{:keys [proposed-allocation-amount authorized-allocation-limit]}]
+  (boolean (and (number? proposed-allocation-amount) (number? authorized-allocation-limit))))
+
 (defn register-allocation-finalization
   "Validate + construct the ALLOCATION-FINALIZATION registration DRAFT
   -- the head-office operator's own act of finalizing a real group
