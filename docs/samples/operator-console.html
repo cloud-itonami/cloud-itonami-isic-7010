@@ -2540,11 +2540,14 @@ img,svg { max-width: 100%; height: auto; }</style>
   </section>
   <section class="card">
     <h2>Approval provenance</h2>
-    <p class="muted">Measured at render time, not asserted: for each approval this run granted, the register the commit actually wrote is inspected for an approver key. Where the approver is not in the record, it is shown as audit-only rather than omitted &mdash; a reader must be able to tell &ldquo;nobody approved&rdquo; from &ldquo;the store did not keep it&rdquo;.</p>
+    <p class="muted">Measured at render time, not asserted: for each approval this run granted, the SSoT register the commit actually wrote is inspected for an approver key. Where the approver is not in the record it is shown as audit-only rather than omitted &mdash; a reader must be able to tell &ldquo;nobody approved&rdquo; from &ldquo;the store did not keep it&rdquo;. This run granted 4 approval(s): 3 retained in the written record, 1 audit-only &mdash; <code>finalize-allocation</code>. Of those approvals, 0 appear in the store ledger: <code>headoffice.operation</code> appends to the ledger only from its <code>:commit</code> and <code>:hold</code> nodes, so approvals are read from the graph audit channel instead.</p>
     <table>
-      <thead><tr><th>Op</th><th>Unit</th><th>Approver (audit ledger)</th><th>Store register</th><th>Retained in record?</th></tr></thead>
+      <thead><tr><th>Op</th><th>Unit</th><th>Approver (audit fact)</th><th>Store register</th><th>Retained in record?</th></tr></thead>
       <tbody>
-
+        <tr><td><code>verify</code></td><td><code>unit-1</code></td><td>op-1</td><td><code>report-of</code></td><td><span class="ok">retained as <code>approved-by</code> = op-1</span></td></tr>
+        <tr><td><code>finalize-allocation</code></td><td><code>unit-1</code></td><td>op-1</td><td><code>allocation-history</code></td><td><span class="warn">audit only &mdash; not retained in record</span></td></tr>
+        <tr><td><code>verify</code></td><td><code>unit-3</code></td><td>op-1</td><td><code>report-of</code></td><td><span class="ok">retained as <code>approved-by</code> = op-1</span></td></tr>
+        <tr><td><code>verify</code></td><td><code>unit-4</code></td><td>op-1</td><td><code>report-of</code></td><td><span class="ok">retained as <code>approved-by</code> = op-1</span></td></tr>
       </tbody>
     </table>
   </section>

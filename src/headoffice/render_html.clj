@@ -26,11 +26,23 @@
   produce byte-identical output (verified by diffing two runs into
   separate scratch files).
 
-  Build-time invariant: `-main` THROWS unless the run this build
-  performed actually produced HARD governor holds, and unless every
-  hard rule the governor emitted is present in the rendered document.
-  A console that quietly renders zero holds would be indistinguishable
-  from a console whose governor never fired.
+  Two streams are read back, because the actor writes to two:
+  `headoffice.store/ledger` is the append-only SSoT log, but
+  `headoffice.operation` only appends to it from its `:commit` and
+  `:hold` nodes, so it holds `:committed` and `:governor-hold` facts and
+  nothing else. Approval facts (`:approval-requested`,
+  `:approval-granted`) exist ONLY on the graph's `:audit` channel, which
+  `g/run*` returns under `:state`. `run-demo!` therefore returns both.
+
+  Build-time invariants: `-main` THROWS unless the run this build
+  performed actually produced HARD governor holds, unless every hard
+  rule the governor emitted is present in the rendered document, unless
+  an allocation was actually finalized, and unless the run granted at
+  least one approval whose approver reaches the page. A console that
+  quietly renders zero holds is indistinguishable from a console whose
+  governor never fired, and an approval table with zero rows is
+  indistinguishable from one where nobody ever approved anything --
+  both are build failures here, not cosmetic gaps.
 
   Usage: `clojure -M:dev:render-html [out-file]`
   (default `docs/samples/operator-console.html`)."
@@ -56,12 +68,32 @@
   would clear is still held when the phase does not enable that write."
   (assoc operator :phase 1))
 
-(defn- exec! [actor tid request context]
-  (g/run* actor {:request request :context context} {:thread-id tid}))
+(defn- audit-of
+  "The graph run's audit channel. `g/run*` returns
+  {:state .. :events .. :status .. :frontier ..}; the actor's `:audit`
+  channel lives on `:state`.
 
-(defn- approve! [actor tid]
-  (g/run* actor {:approval {:status :approved :by "op-1"}}
-          {:thread-id tid :resume? true}))
+  This matters: `:approval-granted` / `:approval-requested` /
+  `:headofficeadvisor-proposal` facts are written to the graph's audit
+  channel ONLY. `headoffice.operation` calls `store/append-ledger!` in
+  just two nodes (`:commit` and `:hold`), so the SSoT ledger holds only
+  `:committed` and `:governor-hold`. Reading approvals off
+  `store/ledger` therefore finds nothing -- which renders as an empty
+  table that looks exactly like `nobody approved anything`."
+  [result]
+  (vec (:audit (:state result))))
+
+(defn- thread-audit
+  "Collapse `[thread-id audit]` observations into one audit stream.
+
+  A resumed thread replays from its checkpoint, so the LAST result for a
+  thread already carries every fact the earlier call saw; concatenating
+  every call would double-count the pre-interrupt facts. Keeps
+  first-appearance thread order so the stream reads in scenario order."
+  [pairs]
+  (let [order  (distinct (map first pairs))
+        latest (reduce (fn [m [tid a]] (assoc m tid a)) {} pairs)]
+    (vec (mapcat latest order))))
 
 (defn run-demo!
   "Drives a freshly seeded store (`headoffice.store/seed-db`, units
@@ -101,44 +133,57 @@
   `:report/verify` replayed against a phase-1 context is refused
   because phase 1 does not enable that write at all.
 
-  Returns the store. Everything rendered below is read back from it."
+  Returns `{:db store :audit [..]}` -- the SSoT after the run, and the
+  graph's own audit stream (which is where approval facts live; the
+  store ledger only ever receives `:committed` and `:governor-hold`).
+  Everything rendered below is read back out of those two."
   []
-  (let [db (store/seed-db)
-        actor (op/build db)]
+  (let [db      (store/seed-db)
+        actor   (op/build db)
+        threads (atom [])
+        record! (fn [tid result] (swap! threads conj [tid (audit-of result)]) result)
+        exec!   (fn [tid request context]
+                  (record! tid (g/run* actor {:request request :context context}
+                                       {:thread-id tid})))
+        approve! (fn [tid]
+                   (record! tid (g/run* actor {:approval {:status  :approved
+                                                          :by      (:actor-id operator)}}
+                                        {:thread-id tid :resume? true})))]
     ;; -- unit-1: clean end-to-end lifecycle --------------------------
-    (exec! actor "u1-intake"
+    (exec! "u1-intake"
            {:op :unit/intake :subject "unit-1"
             :patch {:id "unit-1" :unit-name "Sato Manufacturing K.K."}}
            operator)
 
-    (exec! actor "u1-verify" {:op :report/verify :subject "unit-1"} operator)
-    (approve! actor "u1-verify")
+    (exec! "u1-verify" {:op :report/verify :subject "unit-1"} operator)
+    (approve! "u1-verify")
 
-    (exec! actor "u1-finalize" {:op :actuation/finalize-allocation :subject "unit-1"} operator)
-    (approve! actor "u1-finalize")
+    (exec! "u1-finalize" {:op :actuation/finalize-allocation :subject "unit-1"} operator)
+    (approve! "u1-finalize")
 
     ;; -- HARD: double finalization -----------------------------------
-    (exec! actor "u1-finalize-again" {:op :actuation/finalize-allocation :subject "unit-1"} operator)
+    (exec! "u1-finalize-again" {:op :actuation/finalize-allocation :subject "unit-1"} operator)
 
     ;; -- HARD: no spec-basis for the jurisdiction --------------------
-    (exec! actor "u2-verify" {:op :report/verify :subject "unit-2" :no-spec? true} operator)
+    (exec! "u2-verify" {:op :report/verify :subject "unit-2" :no-spec? true} operator)
 
     ;; -- HARD: evidence checklist never filed ------------------------
-    (exec! actor "u2-finalize" {:op :actuation/finalize-allocation :subject "unit-2"} operator)
+    (exec! "u2-finalize" {:op :actuation/finalize-allocation :subject "unit-2"} operator)
 
     ;; -- HARD: transfer price outside its own arm's-length range -----
-    (exec! actor "u3-verify" {:op :report/verify :subject "unit-3"} operator)
-    (approve! actor "u3-verify")
-    (exec! actor "u3-finalize" {:op :actuation/finalize-allocation :subject "unit-3"} operator)
+    (exec! "u3-verify" {:op :report/verify :subject "unit-3"} operator)
+    (approve! "u3-verify")
+    (exec! "u3-finalize" {:op :actuation/finalize-allocation :subject "unit-3"} operator)
 
     ;; -- HARD: allocation over its own authorized limit --------------
-    (exec! actor "u4-verify" {:op :report/verify :subject "unit-4"} operator)
-    (approve! actor "u4-verify")
-    (exec! actor "u4-finalize" {:op :actuation/finalize-allocation :subject "unit-4"} operator)
+    (exec! "u4-verify" {:op :report/verify :subject "unit-4"} operator)
+    (approve! "u4-verify")
+    (exec! "u4-finalize" {:op :actuation/finalize-allocation :subject "unit-4"} operator)
 
     ;; -- PHASE hold: same clean op, earlier rollout phase ------------
-    (exec! actor "u1-verify-phase1" {:op :report/verify :subject "unit-1"} phase-1-operator)
-    db))
+    (exec! "u1-verify-phase1" {:op :report/verify :subject "unit-1"} phase-1-operator)
+
+    {:db db :audit (thread-audit @threads)}))
 
 ;; ----------------------------- ledger views -----------------------------
 
@@ -192,12 +237,18 @@
     (first (filter #(= subject (get % "unit_id")) (store/allocation-history db)))
     nil))
 
+(defn- approvals-granted
+  "The `:approval-granted` facts this run produced. Read from the GRAPH
+  audit stream, not `store/ledger` -- see `audit-of`."
+  [audit]
+  (filter #(= :approval-granted (:t %)) audit))
+
 (defn- approval-provenance
   "For every approval this run granted, join the audit fact to the
   register the commit wrote and DERIVE whether the approver identity
-  is retrievable from the SSoT, or only from the audit ledger."
-  [db ledger]
-  (for [{:keys [op subject by]} (filter #(= :approval-granted (:t %)) ledger)
+  is retrievable from the SSoT, or only from the audit stream."
+  [db audit]
+  (for [{:keys [op subject by]} (approvals-granted audit)
         :let [reg (register-for db op subject)
               k (approver-key reg)]]
     {:op op :subject subject :approver by
@@ -338,9 +389,9 @@
 
 ;; -- 5. approval provenance -------------------------------------------
 
-(defn- provenance-rows [db ledger]
+(defn- provenance-rows [db audit]
   (for [{:keys [op subject approver register retained? retained-as retained-value]}
-        (approval-provenance db ledger)]
+        (approval-provenance db audit)]
     (row (code op)
          (code subject)
          (esc approver)
@@ -381,10 +432,14 @@
 ;; ----------------------------- document -----------------------------
 
 (defn render
-  "Renders the whole document from a store that has already been driven
-  by `run-demo!` (or any other real scenario)."
-  [db]
+  "Renders the whole document from a `run-demo!` result
+  (`{:db .. :audit ..}`) -- the SSoT after a real run plus the graph's
+  own audit stream."
+  [{:keys [db audit]}]
   (let [ledger (vec (store/ledger db))
+        prov (approval-provenance db audit)
+        retained (filter :retained? prov)
+        audit-only (remove :retained? prov)
         cov (facts/coverage (distinct (map :jurisdiction (store/all-units db))))]
     (str
      "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
@@ -441,12 +496,22 @@
 
      (section "Approval provenance"
               (str "Measured at render time, not asserted: for each approval this run granted, "
-                   "the register the commit actually wrote is inspected for an approver key. "
-                   "Where the approver is not in the record, it is shown as audit-only rather "
-                   "than omitted &mdash; a reader must be able to tell &ldquo;nobody approved&rdquo; "
-                   "from &ldquo;the store did not keep it&rdquo;.")
-              (table ["Op" "Unit" "Approver (audit ledger)" "Store register" "Retained in record?"]
-                     (provenance-rows db ledger)))
+                   "the SSoT register the commit actually wrote is inspected for an approver "
+                   "key. Where the approver is not in the record it is shown as audit-only "
+                   "rather than omitted &mdash; a reader must be able to tell "
+                   "&ldquo;nobody approved&rdquo; from &ldquo;the store did not keep it&rdquo;. "
+                   "This run granted " (esc (count prov)) " approval(s): "
+                   (esc (count retained)) " retained in the written record, "
+                   (esc (count audit-only)) " audit-only"
+                   (when (seq audit-only)
+                     (str " &mdash; "
+                          (str/join ", " (map code (distinct (map :op audit-only))))))
+                   ". Of those approvals, " (esc (count (approvals-granted ledger)))
+                   " appear in the store ledger: <code>headoffice.operation</code> appends to "
+                   "the ledger only from its <code>:commit</code> and <code>:hold</code> nodes, "
+                   "so approvals are read from the graph audit channel instead.")
+              (table ["Op" "Unit" "Approver (audit fact)" "Store register" "Retained in record?"]
+                     (provenance-rows db audit)))
 
      (section "Allocation-finalization records"
               (str "Drafted by <code>headoffice.registry/register-allocation-finalization</code> "
@@ -472,11 +537,12 @@
 
 (defn -main [& args]
   (let [out (or (first args) "docs/samples/operator-console.html")
-        db (run-demo!)
+        {:keys [db audit] :as run} (run-demo!)
         ledger (vec (store/ledger db))
         hard (hard-holds ledger)
         rules (vec (hard-rules ledger))
-        html (render db)]
+        approvals (vec (approvals-granted audit))
+        html (render run)]
 
     ;; Build-time invariant #1: this console exists to show the
     ;; governor refusing things. A run that produced no hold produced
@@ -502,10 +568,29 @@
       (throw (ex-info "render-html: no allocation was finalized -- the clean lifecycle did not complete"
                       {:ledger-facts (count ledger)})))
 
+    ;; Build-time invariant #4: evidence floor for the approval section.
+    ;; The first cut of this renderer filtered `store/ledger` for
+    ;; `:approval-granted`, which the store never receives -- the section
+    ;; rendered a header and zero rows, i.e. exactly what a console whose
+    ;; human-in-the-loop never ran would look like. An empty approval
+    ;; table must fail the build, not ship quietly.
+    (when (empty? approvals)
+      (throw (ex-info "render-html: the run granted ZERO approvals -- refusing to write a console whose approval-provenance section would be an empty table indistinguishable from 'nobody approved anything'"
+                      {:audit-facts (count audit)
+                       :audit-fact-types (vec (distinct (map :t audit)))})))
+    (doseq [{:keys [subject by]} approvals]
+      (when-not (and by (str/includes? html (str by)))
+        (throw (ex-info "render-html: an approver this run recorded is missing from the rendered document"
+                        {:subject subject :approver by}))))
+
     (spit out html)
-    (println "wrote" out
-             (str "(" (count ledger) " ledger facts, "
-                  (count hard) " HARD holds over " (count rules) " distinct rules: "
-                  (str/join ", " (map name rules)) ", "
-                  (count (phase-holds ledger)) " phase hold(s), "
-                  (count (store/allocation-history db)) " allocation record(s))"))))
+    (let [prov (approval-provenance db audit)]
+      (println "wrote" out
+               (str "(" (count ledger) " ledger facts, "
+                    (count hard) " HARD holds over " (count rules) " distinct rules: "
+                    (str/join ", " (map name rules)) ", "
+                    (count (phase-holds ledger)) " phase hold(s), "
+                    (count (store/allocation-history db)) " allocation record(s), "
+                    (count approvals) " approval(s) ["
+                    (count (filter :retained? prov)) " retained, "
+                    (count (remove :retained? prov)) " audit-only])")))))
