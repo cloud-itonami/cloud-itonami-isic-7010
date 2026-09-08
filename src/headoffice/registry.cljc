@@ -49,7 +49,7 @@
   head-office operator would keep, not the act of finalizing the
   allocation itself (that is `headoffice.operation`'s `:actuation/
   finalize-allocation`, always human-gated -- see README `Actuation`)."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defn- unsigned-certificate
   "Every certificate this actor produces is UNSIGNED -- signature is the
@@ -115,7 +115,7 @@
     (throw (ex-info "allocation-finalization: jurisdiction required" {})))
   (when (< sequence 0)
     (throw (ex-info "allocation-finalization: sequence must be >= 0" {})))
-  (let [allocation-number (str (str/upper-case jurisdiction) "-ALC-" (zero-pad sequence 6))
+  (let [allocation-number (str (str/upper jurisdiction) "-ALC-" (zero-pad sequence 6))
         record {"record_id" allocation-number
                 "kind" "allocation-finalization-draft"
                 "unit_id" unit-id
