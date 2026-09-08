@@ -46,7 +46,7 @@
 
   Usage: `clojure -M:dev:render-html [out-file]`
   (default `docs/samples/operator-console.html`)."
-  (:require [clojure.string :as str]
+  (:require [kotoba.lang.text :as str]
             [jp-go-dds.skin]
             [langgraph.graph :as g]
             [headoffice.facts :as facts]
@@ -225,7 +225,7 @@
   registry records."
   [m]
   (when (map? m)
-    (first (filter #(str/includes? (str/lower-case (name %)) "approv") (keys m)))))
+    (first (filter #(str/includes? (str/lower (name %)) "approv") (keys m)))))
 
 (defn- register-for
   "The SSoT register the commit for `op`/`subject` actually wrote."
