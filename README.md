@@ -210,14 +210,14 @@ the generic robotics/identity/forms/dmn/bpmn/audit-ledger stack only
 
 | File | Role |
 |---|---|
-| `src/headoffice/store.cljc` | **Store** protocol -- `MemStore` ‖ `DatomicStore` (`langchain.db`) + append-only audit ledger + allocation-finalization history. No dynamically-filed sub-record -- the actuation op acts directly on a pre-seeded unit, and the double-actuation guard checks a dedicated `:allocation-finalized?` boolean rather than a `:status` value |
-| `src/headoffice/registry.cljc` | Allocation-finalization draft records, plus `transfer-price-outside-arms-length-range?` -- the FIRST instance of a NEW range-bound check shape in this fleet (checks both an upper AND lower bound, unlike the existing single-bound MAXIMUM-ceiling/MINIMUM-threshold families) -- and `budget-allocation-exceeds-authorized-limit?`, an honest TENTH instance of the MAXIMUM-ceiling family, not claimed as new |
-| `src/headoffice/facts.cljc` | Per-jurisdiction transfer-pricing/group-reporting catalog with an official spec-basis citation per entry, honest coverage reporting |
-| `src/headoffice/headofficeadvisor.cljc` | **HeadOffice-LLM** -- `mock-advisor` ‖ `llm-advisor`; intake/report-verification/allocation-finalization proposals |
-| `src/headoffice/governor.cljc` | **Group Oversight Governor** -- 5 HARD checks (spec-basis · evidence-incomplete · transfer-price-outside-arms-length-range, GENUINELY NEW range-bound shape · budget-allocation-exceeds-authorized-limit, honest MAXIMUM-ceiling reuse · already-finalized guard) + 1 soft (confidence/actuation gate) |
-| `src/headoffice/phase.cljc` | **Phase 0→3** -- read-only → assisted intake → assisted verify → supervised (allocation finalization always human; unit intake is the ONLY auto-eligible op, no direct capital risk) |
-| `src/headoffice/operation.cljc` | **OperationActor** -- langgraph-clj StateGraph |
-| `src/headoffice/sim.cljc` | demo driver |
+| `src/headoffice/store.cljk` | **Store** protocol -- `MemStore` ‖ `DatomicStore` (`langchain.db`) + append-only audit ledger + allocation-finalization history. No dynamically-filed sub-record -- the actuation op acts directly on a pre-seeded unit, and the double-actuation guard checks a dedicated `:allocation-finalized?` boolean rather than a `:status` value |
+| `src/headoffice/registry.cljk` | Allocation-finalization draft records, plus `transfer-price-outside-arms-length-range?` -- the FIRST instance of a NEW range-bound check shape in this fleet (checks both an upper AND lower bound, unlike the existing single-bound MAXIMUM-ceiling/MINIMUM-threshold families) -- and `budget-allocation-exceeds-authorized-limit?`, an honest TENTH instance of the MAXIMUM-ceiling family, not claimed as new |
+| `src/headoffice/facts.cljk` | Per-jurisdiction transfer-pricing/group-reporting catalog with an official spec-basis citation per entry, honest coverage reporting |
+| `src/headoffice/headofficeadvisor.cljk` | **HeadOffice-LLM** -- `mock-advisor` ‖ `llm-advisor`; intake/report-verification/allocation-finalization proposals |
+| `src/headoffice/governor.cljk` | **Group Oversight Governor** -- 5 HARD checks (spec-basis · evidence-incomplete · transfer-price-outside-arms-length-range, GENUINELY NEW range-bound shape · budget-allocation-exceeds-authorized-limit, honest MAXIMUM-ceiling reuse · already-finalized guard) + 1 soft (confidence/actuation gate) |
+| `src/headoffice/phase.cljk` | **Phase 0→3** -- read-only → assisted intake → assisted verify → supervised (allocation finalization always human; unit intake is the ONLY auto-eligible op, no direct capital risk) |
+| `src/headoffice/operation.cljk` | **OperationActor** -- langgraph-clj StateGraph |
+| `src/headoffice/sim.cljk` | demo driver |
 | `test/headoffice/*_test.clj` | governor contract · phase invariants · store parity · registry conformance · facts coverage |
 
 ## Business-process coverage (honest)
