@@ -1,5 +1,5 @@
 (ns headoffice.sim
-  "Demo driver -- `clojure -M:dev:run`. Walks a clean unit through
+  "Demo driver -- `kbb -M:dev:run`. Walks a clean unit through
   intake -> group-report verification -> allocation-finalization
   proposal (always escalates) -> human approval -> commit, then shows
   four HARD holds (a jurisdiction with no spec-basis, a unit whose own
