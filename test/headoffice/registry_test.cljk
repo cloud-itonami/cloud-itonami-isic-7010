@@ -1,5 +1,5 @@
 (ns headoffice.registry-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [kotoba.test :refer [deftest is]]
             [headoffice.registry :as r]))
 
 ;; ----------------------------- transfer-price-outside-arms-length-range? -----------------------------
